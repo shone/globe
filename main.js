@@ -1,5 +1,14 @@
 'use strict';
 
+const h1 = document.querySelector('h1');
+h1.onpointerup = event => {
+	event.preventDefault();
+	h1.scrollIntoView({
+		block: 'start',
+		behavior: 'smooth',
+	});
+}
+
 const canvas = document.querySelector('canvas');
 const gl = canvas.getContext('webgl2');
 
@@ -67,8 +76,8 @@ Promise.all([
 	gl.uniform1f(uniforms.cameraFovRadians, Math.PI*2 * (45/360));
 
 	function handleWindowResize() {
-		canvas.width  = window.innerWidth;
-		canvas.height = window.innerHeight;
+		canvas.width  = Math.floor(canvas.offsetWidth * window.devicePixelRatio);
+		canvas.height = Math.floor(canvas.offsetHeight * window.devicePixelRatio);
 		gl.viewport(0, 0, canvas.width, canvas.height);
 		gl.uniform4f(uniforms.viewport, 0, 0, canvas.width, canvas.height);
 	}

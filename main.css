@@ -1,14 +1,64 @@
 html {
-	height: 100%;
-	overflow: hidden;
+	/* Solarized theme */
+	--base03:  #002b36;
+	--base02:  #073642;
+	--base01:  #586e75;
+	--base00:  #657b83;
+	--base0:   #839496;
+	--base1:   #93a1a1;
+	--base2:   #eee8d5;
+	--base3:   #fdf6e3;
+	--yellow:  #b58900;
+	--orange:  #cb4b16;
+	--red:     #dc322f;
+	--magenta: #d33682;
+	--violet:  #6c71c4;
+	--blue:    #268bd2;
+	--cyan:    #2aa198;
+	--green:   #859900;
+
+	background: var(--base03);
+
+	color: var(--base0);
+	font-family: monospace;
+	font-size: 14px;
+
+	overflow-y: scroll;
+}
+
+@media (pointer: coarse) {
+	html {
+		font-size: 28px;
+	}
 }
 
 body {
-	height: 100%;
 	margin: 0;
+	padding-bottom: 2rem;
 }
 
 canvas {
 	width:  100%;
-	height: 100%;
+	height: calc(100svh - 5.4rem);
+}
+
+h1 {
+	text-align: center;
+	line-height: 2.5rem;
+	font-size: 1.5rem;
+	margin: 0;
+	margin-bottom: 2rem;
+	padding-bottom: 1.8rem;
+	background: bottom / 1.2rem no-repeat url('data:image/svg+xml,\
+		<svg viewBox="0 0 1 1" xmlns="http://www.w3.org/2000/svg">\
+			<path d="M.1,.3 L.5,.7 .9,.3" stroke="%23839496" stroke-width=".1" fill="none"/>\
+		</svg>\
+	');
+	cursor: pointer;
+}
+
+p, ul {
+	width: 28rem;
+	max-width: calc(100vw - 4rem);
+	margin: 1rem auto;
 }
