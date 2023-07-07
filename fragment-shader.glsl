@@ -7,6 +7,7 @@ out vec4 diffuseColor;
 uniform vec4 viewport;
 uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
+uniform float cameraFovRadians;
 uniform samplerCube cubemapTexture;
 
 struct Ray {
@@ -36,26 +37,28 @@ struct Ray {
 // 	precisionDebug(r.dir);
 // }
 
-Ray getFragmentRay(Ray camera, float fov) {
-	vec3 left = normalize(cross(vec3(0., 1., 0.), camera.dir));
-	vec3 up = cross(camera.dir, left);
+Ray getFragmentRay(const Ray cameraRay, const float fovRadians) {
+	// Returns a ray representing the current pixel (fragment) being rendered by this shader.
+
+	vec3 left = normalize(cross(vec3(0., 1., 0.), cameraRay.dir));
+	vec3 up = cross(cameraRay.dir, left);
 
 	float aspectRatio = viewport.z / viewport.w;
-	float halfFOV = tan(.5 * radians(fov));
+	float halfFOV = tan(.5 * fovRadians);
 
-	Ray ray;
-	ray.origin = camera.origin;
-	ray.dir = camera.dir;
+	Ray fragmentRay = cameraRay;
 
-	ray.dir += up    * (2. * gl_FragCoord.y / viewport.w - 1.) * halfFOV;
-	ray.dir -= left * (2. * gl_FragCoord.x / viewport.z - 1.) * halfFOV * aspectRatio;
+	fragmentRay.dir += up   * (2. * gl_FragCoord.y / viewport.w - 1.) * halfFOV;
+	fragmentRay.dir -= left * (2. * gl_FragCoord.x / viewport.z - 1.) * halfFOV * aspectRatio;
 
-	ray.dir = normalize(ray.dir);
+	fragmentRay.dir = normalize(fragmentRay.dir);
 
-	return ray;
+	return fragmentRay;
 }
 
 float raySphereIntersect(const Ray ray, const vec3 spherePosition, const float sphereRadius) {
+	// Returns the distance between the ray/sphere intersection point and the ray origin, or -1
+	// if there is no intersection.
 	// Adapted from https://iquilezles.org/articles/intersectors/
 	vec3 oc = ray.origin - spherePosition;
 	float dotDirOC = dot(oc, ray.dir);
@@ -71,43 +74,48 @@ float raySphereIntersect(const Ray ray, const vec3 spherePosition, const float s
 
 void main() {
 	Ray cameraRay = Ray(cameraPosition, cameraDirection);
-	Ray fragmentRay = getFragmentRay(cameraRay, 45.);
+	Ray fragmentRay = getFragmentRay(cameraRay, cameraFovRadians);
 
 	const vec3 lightDirection = vec3(.7, .7, -.2);
 
 	vec3 globePosition = vec3(0.);
 	float globeRadius = 1.;
 
-	vec4 backgroundColor = vec4(0., 0., 0., 1.);
+	vec3 backgroundColor = vec3(0., 0., 0.);
 	vec3 landColorBright = vec3(1.);
 	vec3 landColorDark   = vec3(.8);
 	vec3 oceanColor      = vec3(0., 0., .4);
 
-	diffuseColor = backgroundColor;
-
 	float globeIntersect = raySphereIntersect(fragmentRay, globePosition, globeRadius);
 
-	// TODO: Implement sphere edge anti-aliasing from https://www.shadertoy.com/view/MsSSWV
-	
-	if (globeIntersect >= 0.) {
-		vec3 globeSurfacePosition = fragmentRay.origin + (fragmentRay.dir * globeIntersect);
-		float landMapDistance = .5 - texture(cubemapTexture, globeSurfacePosition).r;
-		float landShading = (dot(normalize(globeSurfacePosition), lightDirection) + 1.) * .5;
-		vec3 landColor = mix(landColorDark, landColorBright, landShading);
+	// Calculate sphere anti-aliasing from https://bgolus.medium.com/rendering-a-sphere-on-a-quad-13c92025570c#5378
+	vec3 closestPointOnRayToGlobeCenter = fragmentRay.origin + (fragmentRay.dir * dot((globePosition - fragmentRay.origin), fragmentRay.dir));
+	float distGlobeCenterToRay = distance(closestPointOnRayToGlobeCenter, globePosition);
+	float fDist = length(vec2(dFdx(distGlobeCenterToRay), dFdy(distGlobeCenterToRay)));
+	float alpha = (1. - distGlobeCenterToRay) / max(fDist, .0001) + 1.;
 
-		vec2 landMapDistPerPixel = vec2(dFdx(landMapDistance), dFdy(landMapDistance));
+	vec3 globeSurfacePosition = globeIntersect < 0. ? closestPointOnRayToGlobeCenter : (fragmentRay.origin + (fragmentRay.dir * globeIntersect));
 
-		if (landMapDistance < -0.03) {
-			diffuseColor.rgb = landColor;
-		} else if (landMapDistance > 0.03) {
-			diffuseColor.rgb = oceanColor;
-		} else {
-			// Calculate anti-aliased edge as per https://drewcassidy.me/2020/06/26/sdf-antialiasing
-			float pixelsToLandEdge = landMapDistance / length(landMapDistPerPixel);
-			float landPixelCoverage = clamp(.5 - pixelsToLandEdge, 0., 1.);
-			diffuseColor.rgb = mix(oceanColor, landColor, landPixelCoverage);
-		}
+	float landMapDistance = .5 - texture(cubemapTexture, globeSurfacePosition).r;
+	float landShading = (dot(normalize(globeSurfacePosition), lightDirection) + 1.) * .5;
+	vec3 landColor = mix(landColorDark, landColorBright, landShading);
+
+	vec2 landMapDistPerPixel = vec2(dFdx(landMapDistance), dFdy(landMapDistance));
+
+	vec3 globeColor;
+	if (landMapDistance < -0.03) {
+		globeColor = landColor;
+	} else if (landMapDistance > 0.03) {
+		globeColor = oceanColor;
+	} else {
+		// Calculate anti-aliased edge as per https://drewcassidy.me/2020/06/26/sdf-antialiasing
+		float pixelsToLandEdge = landMapDistance / length(landMapDistPerPixel);
+		float landPixelCoverage = clamp(.5 - pixelsToLandEdge, 0., 1.);
+		globeColor = mix(oceanColor, landColor, landPixelCoverage);
 	}
+
+	diffuseColor.a = 1.;
+	diffuseColor.rgb = mix(backgroundColor, globeColor, alpha);
 
 // 	if (maxPrecisionDebugValue > 16384.) {
 // 		diffuseColor = vec4(1., 0., 0., 1.);

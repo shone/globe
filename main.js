@@ -53,9 +53,10 @@ Promise.all([
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
 	const uniforms = {
-		viewport:        gl.getUniformLocation(shaderProgram, 'viewport'),
-		cameraPosition:  gl.getUniformLocation(shaderProgram, 'cameraPosition'),
-		cameraDirection: gl.getUniformLocation(shaderProgram, 'cameraDirection'),
+		viewport:         gl.getUniformLocation(shaderProgram, 'viewport'),
+		cameraPosition:   gl.getUniformLocation(shaderProgram, 'cameraPosition'),
+		cameraDirection:  gl.getUniformLocation(shaderProgram, 'cameraDirection'),
+		cameraFovRadians: gl.getUniformLocation(shaderProgram, 'cameraFovRadians'),
 	}
 
 	let cameraPosition  = {x: 0, y: 0, z: 2.7};
@@ -63,6 +64,7 @@ Promise.all([
 
 	gl.uniform3f(uniforms.cameraPosition, cameraPosition.x, cameraPosition.y, cameraPosition.z);
 	gl.uniform3f(uniforms.cameraDirection, cameraDirection.x, cameraDirection.y, cameraDirection.z);
+	gl.uniform1f(uniforms.cameraFovRadians, Math.PI*2 * (45/360));
 
 	function handleWindowResize() {
 		canvas.width  = window.innerWidth;
@@ -240,6 +242,9 @@ const vec = {
 		}
 	},
 	applyAxisAngle(v, axis, angle) {
+		// Adapted from Three.js Quaternion.setFromAxisAngle and Vector3.applyQuaternion
+		// See also http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToQuaternion/index.htm
+
 		const halfAngle = angle / 2, s = Math.sin(halfAngle);
 
 		const qx = axis.x * s;
