@@ -48,8 +48,13 @@ Ray getFragmentRay(const Ray cameraRay, const float fovRadians) {
 
 	Ray fragmentRay = cameraRay;
 
-	fragmentRay.dir += up   * (2. * gl_FragCoord.y / viewport.w - 1.) * halfFOV;
-	fragmentRay.dir -= left * (2. * gl_FragCoord.x / viewport.z - 1.) * halfFOV * aspectRatio;
+	// In landscape orientation, fovRadians will correspond to the vertical field-of view.
+	// In portrait orientation, fovRadians will correspond to the horizontal field-of view.
+	float aspectY = viewport.z > viewport.w ? 1. : (1. / aspectRatio);
+	float aspectX = viewport.z > viewport.w ? aspectRatio : 1.;
+
+	fragmentRay.dir += up   * (2. * gl_FragCoord.y / viewport.w - 1.) * halfFOV * aspectY;
+	fragmentRay.dir -= left * (2. * gl_FragCoord.x / viewport.z - 1.) * halfFOV * aspectX;
 
 	fragmentRay.dir = normalize(fragmentRay.dir);
 
