@@ -9,6 +9,7 @@ uniform vec3 cameraPosition;
 uniform vec3 cameraDirection;
 uniform float cameraFovRadians;
 uniform samplerCube cubemapTexture;
+uniform float globeRotationRadians;
 
 struct Ray {
 	vec3 origin;
@@ -77,6 +78,17 @@ float raySphereIntersect(const Ray ray, const vec3 spherePosition, const float s
 	return (p - q) > 0. ? p - q : p + q;
 }
 
+vec3 rotateY(const vec3 v, const float angleRadians) {
+	// Rotate the given vector around the Y axis
+	float angleSin = sin(angleRadians);
+	float angleCos = cos(angleRadians);
+	return vec3(
+		v.x * angleCos - v.z * angleSin,
+		v.y,
+		v.x * angleSin + v.z * angleCos
+	);
+}
+
 void main() {
 	Ray cameraRay = Ray(cameraPosition, cameraDirection);
 	Ray fragmentRay = getFragmentRay(cameraRay, cameraFovRadians);
@@ -101,7 +113,7 @@ void main() {
 
 	vec3 globeSurfacePosition = globeIntersect < 0. ? closestPointOnRayToGlobeCenter : (fragmentRay.origin + (fragmentRay.dir * globeIntersect));
 
-	float landMapDistance = .5 - texture(cubemapTexture, globeSurfacePosition).r;
+	float landMapDistance = .5 - texture(cubemapTexture, rotateY(globeSurfacePosition, globeRotationRadians)).r;
 	float landShading = (dot(normalize(globeSurfacePosition), lightDirection) + 1.) * .5;
 	vec3 landColor = mix(landColorDark, landColorBright, landShading);
 

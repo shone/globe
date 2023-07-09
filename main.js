@@ -62,10 +62,11 @@ Promise.all([
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
 	const uniforms = {
-		viewport:         gl.getUniformLocation(shaderProgram, 'viewport'),
-		cameraPosition:   gl.getUniformLocation(shaderProgram, 'cameraPosition'),
-		cameraDirection:  gl.getUniformLocation(shaderProgram, 'cameraDirection'),
-		cameraFovRadians: gl.getUniformLocation(shaderProgram, 'cameraFovRadians'),
+		viewport:             gl.getUniformLocation(shaderProgram, 'viewport'),
+		cameraPosition:       gl.getUniformLocation(shaderProgram, 'cameraPosition'),
+		cameraDirection:      gl.getUniformLocation(shaderProgram, 'cameraDirection'),
+		cameraFovRadians:     gl.getUniformLocation(shaderProgram, 'cameraFovRadians'),
+		globeRotationRadians: gl.getUniformLocation(shaderProgram, 'globeRotationRadians'),
 	}
 
 	let cameraPosition  = {x: 0, y: 0, z: 2.7};
@@ -91,6 +92,9 @@ Promise.all([
 	requestAnimationFrame(function callback(timestamp) {
 		const deltaMs = timestamp - prevFrameTimestamp;
 		prevFrameTimestamp = timestamp;
+
+		// Rotate the globe counter-clockwise (as when viewed from the north pole), matching the earth's rotation direction.
+		gl.uniform1f(uniforms.globeRotationRadians, timestamp * Math.PI*2 * .00001);
 
 		const flyDistance = deltaMs * .001;
 		const leftVector = vec.normalized(vec.cross({x: 0, y: 1, z: 0}, cameraDirection));
