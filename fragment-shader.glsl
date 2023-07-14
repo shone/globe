@@ -101,7 +101,7 @@ void main() {
 	vec3 backgroundColor = vec3(0., 0., 0.);
 	vec3 landColorBright = vec3(1.);
 	vec3 landColorDark   = vec3(.8);
-	vec3 oceanColor      = vec3(0., 0., .4);
+	vec3 oceanColor      = vec3(38./255., 139./255., 210./255.);
 
 	float globeIntersect = raySphereIntersect(fragmentRay, globePosition, globeRadius);
 
@@ -109,7 +109,7 @@ void main() {
 	vec3 closestPointOnRayToGlobeCenter = fragmentRay.origin + (fragmentRay.dir * dot((globePosition - fragmentRay.origin), fragmentRay.dir));
 	float distGlobeCenterToRay = distance(closestPointOnRayToGlobeCenter, globePosition);
 	float fDist = length(vec2(dFdx(distGlobeCenterToRay), dFdy(distGlobeCenterToRay)));
-	float alpha = (1. - distGlobeCenterToRay) / max(fDist, .0001) + 1.;
+	float alpha = clamp((1. - distGlobeCenterToRay) / max(fDist, .0001) + 1., 0., 1.);
 
 	vec3 globeSurfacePosition = globeIntersect < 0. ? closestPointOnRayToGlobeCenter : (fragmentRay.origin + (fragmentRay.dir * globeIntersect));
 
