@@ -37,7 +37,7 @@ body {
 	padding-bottom: 2rem;
 }
 
-canvas {
+#globe-canvas {
 	width:  100%;
 	height: calc(100svh - 5.4rem);
 }
@@ -57,8 +57,47 @@ h1 {
 	cursor: pointer;
 }
 
-p, ul {
+h2, p, ul {
 	width: 28rem;
 	max-width: calc(100vw - 4rem);
 	margin: 1rem auto;
+}
+h2 {
+	font-size: 1rem;
+	font-weight: bold;
+	margin-top: 2rem;
+}
+a {
+	color: var(--base0);
+}
+
+#input-mask {
+	display: block;
+	margin: 1rem auto;
+	width: 28rem;
+	max-width: calc(100vw - 2rem);
+	aspect-ratio: 2;
+}
+
+.sample-viewbox {
+	display: block;
+	width: 28rem;
+	max-width: calc(100vw - 4rem);
+	aspect-ratio: 1;
+	margin: 1rem auto;
+}
+
+#cube-faces {
+	width: 28rem;
+	max-width: calc(100vw - 4rem);
+	margin: 1rem auto;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	justify-content: space-between;
+}
+#cube-faces canvas {
+	width: calc(50% - .2rem);
+	aspect-ratio: 1;
+	margin-bottom: .3rem;
 }

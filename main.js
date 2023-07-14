@@ -1,5 +1,8 @@
 'use strict';
 
+const canvas = document.getElementById('globe-canvas');
+const gl = canvas.getContext('webgl2');
+
 const h1 = document.querySelector('h1');
 h1.onpointerup = event => {
 	event.preventDefault();
@@ -9,8 +12,142 @@ h1.onpointerup = event => {
 	});
 }
 
-const canvas = document.querySelector('canvas');
-const gl = canvas.getContext('webgl2');
+const inputMask = document.getElementById('input-mask');
+inputMask.onload = async () => {
+	const inputMaskCanvas = document.createElement('canvas');
+	inputMaskCanvas.width = 8192;
+	inputMaskCanvas.height = 4096;
+	{
+		const context = inputMaskCanvas.getContext('2d');
+		context.drawImage(inputMask, 0, 0, inputMaskCanvas.width, inputMaskCanvas.height);
+	}
+
+	const sampleViewboxLeft = inputMaskCanvas.width * .46;
+	const sampleViewboxTop = inputMaskCanvas.height * .18;
+	const sampleViewboxSize = inputMaskCanvas.width * .08;
+
+	{
+		const inputMaskViewboxCanvas = document.getElementById('input-mask-viewbox');
+		const context = inputMaskViewboxCanvas.getContext('2d');
+		context.drawImage(
+			inputMaskCanvas,
+			sampleViewboxLeft, sampleViewboxTop, // Source position
+			sampleViewboxSize, sampleViewboxSize, // Source dimensions
+			0, 0, // Destination position
+			inputMaskViewboxCanvas.width, inputMaskViewboxCanvas.height, // Destination dimensions
+		);
+	}
+
+	const inputMaskBlurredCanvas = document.createElement('canvas');
+	inputMaskBlurredCanvas.width = inputMaskCanvas.width;
+	inputMaskBlurredCanvas.height = inputMaskCanvas.height;
+	let inputMaskBlurredRgbaData = null;
+	{
+		const context = inputMaskBlurredCanvas.getContext('2d');
+		// context.filter = 'blur(6px)';
+		context.drawImage(inputMask, 0, 0, inputMaskBlurredCanvas.width, inputMaskBlurredCanvas.height);
+		inputMaskBlurredRgbaData = context.getImageData(0, 0, inputMaskBlurredCanvas.width, inputMaskBlurredCanvas.height).data;
+	}
+
+	{
+		const blurViewboxCanvas = document.querySelector('#blur-viewbox');
+		const context = blurViewboxCanvas.getContext('2d');
+		context.drawImage(
+			inputMaskBlurredCanvas,
+			sampleViewboxLeft, sampleViewboxTop, // Source position
+			sampleViewboxSize, sampleViewboxSize, // Source dimensions
+			0, 0, // Destination position
+			blurViewboxCanvas.width, blurViewboxCanvas.height, // Destination dimensions
+		);
+	}
+
+	const singleChannelData = new Uint8ClampedArray(inputMaskBlurredCanvas.width*inputMaskBlurredCanvas.height);
+	for (var i = 0; i < singleChannelData.length; i++) {
+		singleChannelData[i] = inputMaskBlurredRgbaData[i*4] >= 128 ? 255 : 0;
+	}
+
+	const signedDistanceFieldWorker = new Worker('signed-distance-field.js');
+	signedDistanceFieldWorker.postMessage({data: singleChannelData, width: inputMaskBlurredCanvas.width, height: inputMaskBlurredCanvas.height});
+	const signedDistanceFieldResponse = await new Promise(resolve => signedDistanceFieldWorker.onmessage = event => resolve(event.data));
+	const imgArr = new Uint8ClampedArray(inputMaskBlurredCanvas.width*inputMaskBlurredCanvas.height*4)
+	for (let x = 0; x < inputMaskBlurredCanvas.width; x++) {
+		for (let y = 0; y < inputMaskBlurredCanvas.height; y++) {
+			imgArr[y*inputMaskBlurredCanvas.width*4 + x*4 + 0] = signedDistanceFieldResponse[y*inputMaskBlurredCanvas.width+x];
+			imgArr[y*inputMaskBlurredCanvas.width*4 + x*4 + 1] = signedDistanceFieldResponse[y*inputMaskBlurredCanvas.width+x];
+			imgArr[y*inputMaskBlurredCanvas.width*4 + x*4 + 2] = signedDistanceFieldResponse[y*inputMaskBlurredCanvas.width+x];
+			imgArr[y*inputMaskBlurredCanvas.width*4 + x*4 + 3] = 255;
+		}
+	}
+
+	const sdfImageData = new ImageData(imgArr, inputMaskBlurredCanvas.width, inputMaskBlurredCanvas.height);
+
+	{
+		const sdfFullsizeCanvas = document.createElement('canvas');
+		sdfFullsizeCanvas.width = inputMaskBlurredCanvas.width;
+		sdfFullsizeCanvas.height = inputMaskBlurredCanvas.height;
+		const sdfFullsizeCanvasContext = sdfFullsizeCanvas.getContext('2d');
+		sdfFullsizeCanvasContext.putImageData(sdfImageData, 0, 0);
+
+		const sdfViewboxCanvas = document.getElementById('sdf-viewbox');
+		const sdfViewboxCanvasContext = sdfViewboxCanvas.getContext('2d');
+		sdfViewboxCanvasContext.drawImage(
+			sdfFullsizeCanvas,
+			sampleViewboxLeft, sampleViewboxTop, // Source position
+			sampleViewboxSize, sampleViewboxSize, // Source dimensions
+			0, 0, // Destination position
+			sdfViewboxCanvas.width, sdfViewboxCanvas.height, // Destination dimensions
+		);
+	}
+
+	const faces = await Promise.all([
+		loadCubeFace('neg_x'),
+		loadCubeFace('neg_y'),
+		loadCubeFace('neg_z'),
+		loadCubeFace('pos_x'),
+		loadCubeFace('pos_y'),
+		loadCubeFace('pos_z'),
+	]);
+
+	async function loadCubeFace(cubeFaceName) {
+		const cubeProjectionWorker = new Worker('cube-projection.js');
+		cubeProjectionWorker.postMessage({readData: sdfImageData, cubeFaceName});
+		const cubeProjectionResponse = await new Promise(resolve => cubeProjectionWorker.onmessage = event => resolve(event.data));
+		const faceData = new ImageData(cubeProjectionResponse.writeData, cubeProjectionResponse.faceWidth, cubeProjectionResponse.faceHeight);
+
+		const cubeFaceCanvas = document.querySelector(`#cube-faces .${cubeFaceName}`);
+		cubeFaceCanvas.width = cubeProjectionResponse.faceWidth;
+		cubeFaceCanvas.height = cubeProjectionResponse.faceHeight;
+		const cubeFaceCanvasContext = cubeFaceCanvas.getContext('2d');
+		cubeFaceCanvasContext.putImageData(faceData, 0, 0);
+
+		return {cubeFaceName, faceData};
+	}
+
+	const faceGlTargetMap = {
+		neg_x: gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+		neg_y: gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+		neg_z: gl.TEXTURE_CUBE_MAP_NEGATIVE_Z,
+		pos_x: gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+		pos_y: gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+		pos_z: gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+	}
+
+	for (const face of faces) {
+		gl.texImage2D(
+			faceGlTargetMap[face.cubeFaceName],
+			0, // Level of detail
+			gl.RGBA, // Internal format
+			face.faceData.width,
+			face.faceData.height,
+			0, // Border (must be 0)
+			gl.RGBA, // Format
+			gl.UNSIGNED_BYTE, // Type
+			face.faceData,
+		);
+	}
+
+	gl.generateMipmap(gl.TEXTURE_CUBE_MAP);
+}
 
 // alert(`
 // 	${printShaderPrecisionFormat(gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.LOW_FLOAT))}
@@ -116,8 +253,6 @@ Promise.all([
 		requestAnimationFrame(callback);
 	});
 
-	render();
-
 	window.onkeydown = event => {
 		if (!'wasdqe'.includes(event.key)) {
 			return;
@@ -162,6 +297,7 @@ Promise.all([
 const cubemapTexture = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemapTexture);
 gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
 async function loadImage(src, target) {
 	const image = new Image();
