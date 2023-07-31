@@ -9,7 +9,7 @@ onmessage = event => {
 	const {data, width, height} = event.data;
 
 	const cutoff = .5;
-	const radius = 200;
+	const radius = 20;
 	const area = width * height;
 	const size = Math.max(width, height);
 

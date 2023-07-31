@@ -25,14 +25,9 @@
 			Equirectangular projection, source: <a href="https://commons.wikimedia.org/wiki/File:BlankMap-Equirectangular.svg">wikipedia</a>
 		</p>
 
-		<h2>2. Gaussian blur</h2>
-		<canvas id="blur-viewbox" class="sample-viewbox" width="512" height="512"></canvas>
-		<p>
-			For smoothing contours and removing country borders.
-		</p>
-
 		<h2>3. Signed distance field generation</h2>
 		<canvas id="sdf-viewbox" class="sample-viewbox" width="512" height="512"></canvas>
+		<canvas id="sdf-viewer" class="sample-viewbox" width="512" height="512"></canvas>
 
 		<h2>4. Cube projection</h2>
 		<div id="cube-faces">
@@ -44,6 +39,7 @@
 			<canvas class="pos_z"></canvas>
 		</div>
 
+		<script src="sdf-viewer.js"></script>
 		<script src="main.js"></script>
 	</body>
 </html>

@@ -15,16 +15,18 @@ h1.onpointerup = event => {
 const inputMask = document.getElementById('input-mask');
 inputMask.onload = async () => {
 	const inputMaskCanvas = document.createElement('canvas');
-	inputMaskCanvas.width = 8192;
-	inputMaskCanvas.height = 4096;
+	inputMaskCanvas.width = 2048;
+	inputMaskCanvas.height = 1024;
+	let inputMaskRgbaData = null;
 	{
 		const context = inputMaskCanvas.getContext('2d');
 		context.drawImage(inputMask, 0, 0, inputMaskCanvas.width, inputMaskCanvas.height);
+		inputMaskRgbaData = context.getImageData(0, 0, inputMaskCanvas.width, inputMaskCanvas.height).data;
 	}
 
 	const sampleViewboxLeft = inputMaskCanvas.width * .46;
 	const sampleViewboxTop = inputMaskCanvas.height * .18;
-	const sampleViewboxSize = inputMaskCanvas.width * .08;
+	const sampleViewboxSize = inputMaskCanvas.width * .04;
 
 	{
 		const inputMaskViewboxCanvas = document.getElementById('input-mask-viewbox');
@@ -38,53 +40,30 @@ inputMask.onload = async () => {
 		);
 	}
 
-	const inputMaskBlurredCanvas = document.createElement('canvas');
-	inputMaskBlurredCanvas.width = inputMaskCanvas.width;
-	inputMaskBlurredCanvas.height = inputMaskCanvas.height;
-	let inputMaskBlurredRgbaData = null;
-	{
-		const context = inputMaskBlurredCanvas.getContext('2d');
-		// context.filter = 'blur(6px)';
-		context.drawImage(inputMask, 0, 0, inputMaskBlurredCanvas.width, inputMaskBlurredCanvas.height);
-		inputMaskBlurredRgbaData = context.getImageData(0, 0, inputMaskBlurredCanvas.width, inputMaskBlurredCanvas.height).data;
-	}
-
-	{
-		const blurViewboxCanvas = document.querySelector('#blur-viewbox');
-		const context = blurViewboxCanvas.getContext('2d');
-		context.drawImage(
-			inputMaskBlurredCanvas,
-			sampleViewboxLeft, sampleViewboxTop, // Source position
-			sampleViewboxSize, sampleViewboxSize, // Source dimensions
-			0, 0, // Destination position
-			blurViewboxCanvas.width, blurViewboxCanvas.height, // Destination dimensions
-		);
-	}
-
-	const singleChannelData = new Uint8ClampedArray(inputMaskBlurredCanvas.width*inputMaskBlurredCanvas.height);
+	const singleChannelData = new Uint8ClampedArray(inputMaskCanvas.width*inputMaskCanvas.height);
 	for (var i = 0; i < singleChannelData.length; i++) {
-		singleChannelData[i] = inputMaskBlurredRgbaData[i*4] >= 128 ? 255 : 0;
+		singleChannelData[i] = inputMaskRgbaData[i*4];
 	}
 
 	const signedDistanceFieldWorker = new Worker('signed-distance-field.js');
-	signedDistanceFieldWorker.postMessage({data: singleChannelData, width: inputMaskBlurredCanvas.width, height: inputMaskBlurredCanvas.height});
+	signedDistanceFieldWorker.postMessage({data: singleChannelData, width: inputMaskCanvas.width, height: inputMaskCanvas.height});
 	const signedDistanceFieldResponse = await new Promise(resolve => signedDistanceFieldWorker.onmessage = event => resolve(event.data));
-	const imgArr = new Uint8ClampedArray(inputMaskBlurredCanvas.width*inputMaskBlurredCanvas.height*4)
-	for (let x = 0; x < inputMaskBlurredCanvas.width; x++) {
-		for (let y = 0; y < inputMaskBlurredCanvas.height; y++) {
-			imgArr[y*inputMaskBlurredCanvas.width*4 + x*4 + 0] = signedDistanceFieldResponse[y*inputMaskBlurredCanvas.width+x];
-			imgArr[y*inputMaskBlurredCanvas.width*4 + x*4 + 1] = signedDistanceFieldResponse[y*inputMaskBlurredCanvas.width+x];
-			imgArr[y*inputMaskBlurredCanvas.width*4 + x*4 + 2] = signedDistanceFieldResponse[y*inputMaskBlurredCanvas.width+x];
-			imgArr[y*inputMaskBlurredCanvas.width*4 + x*4 + 3] = 255;
+	const imgArr = new Uint8ClampedArray(inputMaskCanvas.width*inputMaskCanvas.height*4)
+	for (let x = 0; x < inputMaskCanvas.width; x++) {
+		for (let y = 0; y < inputMaskCanvas.height; y++) {
+			const value = signedDistanceFieldResponse[y*inputMaskCanvas.width+x];
+			imgArr[y*inputMaskCanvas.width*4 + x*4 + 0] = value;
+			imgArr[y*inputMaskCanvas.width*4 + x*4 + 1] = value;
+			imgArr[y*inputMaskCanvas.width*4 + x*4 + 2] = value;
+			imgArr[y*inputMaskCanvas.width*4 + x*4 + 3] = 255;
 		}
 	}
-
-	const sdfImageData = new ImageData(imgArr, inputMaskBlurredCanvas.width, inputMaskBlurredCanvas.height);
+	const sdfImageData = new ImageData(imgArr, inputMaskCanvas.width, inputMaskCanvas.height);
 
 	{
 		const sdfFullsizeCanvas = document.createElement('canvas');
-		sdfFullsizeCanvas.width = inputMaskBlurredCanvas.width;
-		sdfFullsizeCanvas.height = inputMaskBlurredCanvas.height;
+		sdfFullsizeCanvas.width = inputMaskCanvas.width;
+		sdfFullsizeCanvas.height = inputMaskCanvas.height;
 		const sdfFullsizeCanvasContext = sdfFullsizeCanvas.getContext('2d');
 		sdfFullsizeCanvasContext.putImageData(sdfImageData, 0, 0);
 
@@ -97,6 +76,9 @@ inputMask.onload = async () => {
 			0, 0, // Destination position
 			sdfViewboxCanvas.width, sdfViewboxCanvas.height, // Destination dimensions
 		);
+
+		const sdfViewer = document.getElementById('sdf-viewer');
+		setupSdfViewer(sdfViewer, signedDistanceFieldResponse, inputMaskCanvas.width, inputMaskCanvas.height);
 	}
 
 	const faces = await Promise.all([
@@ -154,7 +136,7 @@ inputMask.onload = async () => {
 // 	${printShaderPrecisionFormat(gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.MEDIUM_FLOAT))}
 // 	${printShaderPrecisionFormat(gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT))}
 // `);
-// 
+//
 // function printShaderPrecisionFormat(fmt) {
 // 	return `min: ${fmt.rangeMin}, max: ${fmt.rangeMax}, precision: ${fmt.precision}`;
 // }
@@ -296,8 +278,8 @@ Promise.all([
 
 const cubemapTexture = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemapTexture);
-gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
-gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
 async function loadImage(src, target) {
 	const image = new Image();

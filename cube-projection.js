@@ -19,8 +19,8 @@ onmessage = event => {
 
 	const writeData = new Uint8ClampedArray(faceWidth * faceHeight * 4);
 
-	const copyPixel = copyPixelNearest(readData, writeData);
-	// const copyPixel = copyPixelLanczos(readData, writeData);
+	// const copyPixel = copyPixelNearest(readData, writeData);
+	const copyPixel = copyPixelLanczos(readData, writeData);
 
 	for (let x = 0; x < faceWidth; x++) {
 		for (let y = 0; y < faceHeight; y++) {
